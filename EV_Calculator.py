@@ -672,7 +672,6 @@ if Dividend_Filter:
     div_calendar = get_div_calendar()
     
 df = EV_Sheet_Spread(final_list)
-df = EV_Sheet_Spread(final_list)
 df['Alpha'] = df['Alpha'].str.replace('%', '').astype(float)
 
 highest_alpha_df = df.loc[df.groupby(['Symbol', 'Strategy'])['Alpha'].idxmax()]
