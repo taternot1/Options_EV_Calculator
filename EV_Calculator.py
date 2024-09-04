@@ -33,6 +33,7 @@ fmp_api_key = "XXXXX" #https://site.financialmodelingprep.com/developer/docs/pri
 step = 0.1 #Affects the accuracy of the summations, needs to be even factor of 0.5 (Larger steps are significantly faster)
 Earnings_Filter = True
 Dividend_Filter = False
+Forward_Volatility_Model = True #Choose to activate the IV/HV blend forward volatility model
 condor_prob_profit = 0.5 #Ideal POP is 50%-80%
 spread_prob_profit = 0.55
 min_alpha = 0.05 #Ideal Alpha is between 5%-20%
@@ -445,7 +446,7 @@ def calculate_EV_Spread(symbol):
                             if min_DTE <= (datetime.datetime.strptime(date, "%Y-%m-%d").date() - today).days <= num_days]
         Sheet_hv = EV_Calculator(symbol,hv,valid_expirations,stockp)
         Sheet = pd.concat([Sheet, Sheet_hv], ignore_index=True)
-    else: 
+    elif Forward_Volatility_Model: 
         valid_expirations = [date for date in data["expirations"]
                             if min_DTE <= (datetime.datetime.strptime(date, "%Y-%m-%d").date() - today).days <= max_DTE]
         Sheet_fv = EV_Calculator(symbol,fv,valid_expirations,stockp)
@@ -670,18 +671,24 @@ def EV_Sheet_Spread(symbol_list):
 
 if Dividend_Filter:
     div_calendar = get_div_calendar()
-    
+   
 df = EV_Sheet_Spread(final_list)
 df['Alpha'] = df['Alpha'].str.replace('%', '').astype(float)
 
 highest_alpha_df = df.loc[df.groupby(['Symbol', 'Strategy'])['Alpha'].idxmax()]
-df_spreads = highest_alpha_df.drop(columns=["Call Lower Strike", "Call Upper Strike", "Put Lower Strike", "Put Upper Strike"]).dropna(subset=["Lower Strike", "Upper Strike"])
+
+df_spreads = highest_alpha_df.drop(columns=["Call Lower Strike", "Call Upper Strike", "Put Lower Strike", "Put Upper Strike"])
+df_spreads = df_spreads.dropna(subset=["Lower Strike", "Upper Strike"])
 df_spreads = df_spreads[['Symbol', 'Strategy', 'Lower Strike', 'Upper Strike', 'Worst Fill Price', 'Mid Fill Price', 'Stock Price', 'Days to Expiration', 'Alpha', 'FV']]
-df_condors = highest_alpha_df.drop(columns=["Lower Strike", "Upper Strike"]).dropna(subset=["Call Lower Strike", "Call Upper Strike", "Put Lower Strike", "Put Upper Strike"])
+
+df_condors = highest_alpha_df.drop(columns=["Lower Strike", "Upper Strike"])
+df_condors = df_condors.dropna(subset=["Call Lower Strike", "Call Upper Strike", "Put Lower Strike", "Put Upper Strike"])
+df_condors = df_condors[['Symbol', 'Strategy', 'Call Lower Strike', 'Call Upper Strike', 'Put Lower Strike', 'Put Upper Strike', 'Worst Fill Price', 'Mid Fill Price', 'Stock Price', 'Days to Expiration', 'Alpha', 'FV']]
+df_spreads['Alpha'] = df_spreads['Alpha'].astype(str) + '%'
+df_condors['Alpha'] = df_condors['Alpha'].astype(str) + '%'
 
 print("Spreads DataFrame:")
 print(df_spreads)
 
 print("\nCondors DataFrame:")
 print(df_condors)
-
