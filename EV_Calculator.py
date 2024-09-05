@@ -169,7 +169,7 @@ def Implied_Vol(symbol):
     url = "https://api.marketdata.app/v1/options/expirations/" + symbol + "?token=" + market_data_api_key
     response = requests.get(url)
     data = response.json()
-
+    
     valid_expirations = [date for date in data["expirations"]
                          if 25 <= (datetime.datetime.strptime(date, "%Y-%m-%d").date() - today).days <= 35]
 
@@ -444,19 +444,19 @@ def calculate_EV_Spread(symbol):
     if num_days > min_DTE:
         valid_expirations = [date for date in data["expirations"]
                             if min_DTE <= (datetime.datetime.strptime(date, "%Y-%m-%d").date() - today).days <= num_days]
-        Sheet_hv = EV_Calculator(symbol,hv,valid_expirations,stockp)
+        Sheet_hv = EV_Calculator(symbol,hv,valid_expirations,stockp,"HV")
         Sheet = pd.concat([Sheet, Sheet_hv], ignore_index=True)
     elif Forward_Volatility_Model: 
         valid_expirations = [date for date in data["expirations"]
                             if min_DTE <= (datetime.datetime.strptime(date, "%Y-%m-%d").date() - today).days <= max_DTE]
-        Sheet_fv = EV_Calculator(symbol,fv,valid_expirations,stockp)
+        Sheet_fv = EV_Calculator(symbol,fv,valid_expirations,stockp,"FV")
         Sheet = pd.concat([Sheet, Sheet_fv], ignore_index=True)
         
     return Sheet
 
 
 
-def EV_Calculator(symbol,fv,valid_expirations,stockp):
+def EV_Calculator(symbol,fv,valid_expirations,stockp,volatility_method):
     Sheet = pd.DataFrame()
     for expiration in valid_expirations:
         option_chain_url = "https://api.marketdata.app/v1/options/chain/" + symbol + "?expiration=" + str(expiration) + "&strikeLimit=" + str(14) + "&minVolume=" + str(minimum_volume) + "&minOpenInterest=" + str(minimum_open_interest) + "&maxBidASkSpread=" + str(max_bid_ask_spread) + "&token=" + market_data_api_key
@@ -520,11 +520,11 @@ def EV_Calculator(symbol,fv,valid_expirations,stockp):
                     if xC > min_alpha and (strikeC1 > stockp) and xC_min > 0 and bs_mod(stockp,breakeven,days_to_exp,r,fv) > spread_prob_profit:
                         bear_call_spread_rows.append({"Symbol": symbol, "Strategy": "Bear Call Spread", "Lower Strike": strikeC1, "Upper Strike": strikeC2,
                                             "Worst Fill Price": "$"+str(round(xC_worst_fill,4)), "Mid Fill Price": "$"+str(round(xC_mid_fill,4)),
-                                            "Stock Price": stockp, "Days to Expiration": days_to_exp, "Alpha": str(round(100*xC,4))+"%","FV":str(round(100*fv,4))+"%"})
+                                            "Stock Price": stockp, "Days to Expiration": days_to_exp, "Alpha": str(round(100*xC,4))+"%","FV":str(round(100*fv,4))+"%", "Volatility Method": volatility_method})
                     if yC > min_alpha and (strikeC2 < stockp) and yC_min > 0 and (1- bs_mod(stockp,breakeven,days_to_exp,r,fv)) > spread_prob_profit:
                         bull_call_spread_rows.append({"Symbol": symbol, "Strategy": "Bull Call Spread", "Lower Strike": strikeC1,"Upper Strike": strikeC2,
                                         "Worst Fill Price": "$"+str(round(yC_worst_fill,4)), "Mid Fill Price": "$"+str(round(yC_mid_fill,4)),
-                                            "Stock Price": stockp, "Days to Expiration": days_to_exp, "Alpha": str(round(100*yC,4))+"%","FV":str(round(100*fv,4))+"%"})
+                                            "Stock Price": stockp, "Days to Expiration": days_to_exp, "Alpha": str(round(100*yC,4))+"%","FV":str(round(100*fv,4))+"%", "Volatility Method": volatility_method})
         if checkP == 1:
             for k in range(len(df_Put)):
                 for l in range(k + 1, min(k + 3, len(df_Put))):
@@ -551,11 +551,11 @@ def EV_Calculator(symbol,fv,valid_expirations,stockp):
                     if xP > min_alpha  and (strikeP1 > stockp) and xP_min > 0 and bs_mod(stockp,breakeven,days_to_exp,r,fv) > spread_prob_profit:
                         bear_put_spread_rows.append({"Symbol": symbol, "Strategy": "Bear Put Spread", "Lower Strike": strikeP1,"Upper Strike": strikeP2,
                                             "Worst Fill Price": "$"+str(round(xP_worst_fill,4)), "Mid Fill Price": "$"+str(round(xP_mid_fill,4)),
-                                            "Stock Price": stockp, "Days to Expiration": days_to_exp, "Alpha": str(round(100*xP,4))+"%","FV":str(round(100*fv,4))+"%"})
+                                            "Stock Price": stockp, "Days to Expiration": days_to_exp, "Alpha": str(round(100*xP,4))+"%","FV":str(round(100*fv,4))+"%", "Volatility Method": volatility_method})
                     if yP > min_alpha and (strikeP2 < stockp) and yP_min > 0 and (1-bs_mod(stockp,breakeven,days_to_exp,r,fv) > spread_prob_profit) > spread_prob_profit:
                         bull_put_spread_rows.append({"Symbol": symbol, "Strategy": "Bull Put Spread", "Lower Strike": strikeP1,"Upper Strike": strikeP2,
                                             "Worst Fill Price": "$"+str(round(yP_worst_fill,4)), "Mid Fill Price": "$"+str(round(yP_mid_fill,4)),
-                                            "Stock Price": stockp, "Days to Expiration": days_to_exp, "Alpha": str(round(100*yP,4))+"%","FV":str(round(100*fv,4))+"%"})
+                                            "Stock Price": stockp, "Days to Expiration": days_to_exp, "Alpha": str(round(100*yP,4))+"%","FV":str(round(100*fv,4))+"%", "Volatility Method": volatility_method})
             if checkC == 1 and checkP == 1:
                 for i in range(len(df_Call)):
                     for j in range(i + 1, min(i + 3, len(df_Call))):
@@ -612,8 +612,9 @@ def EV_Calculator(symbol,fv,valid_expirations,stockp):
                                         "Mid Fill Price": "$"+str(round(C_mid_fill,4)),
                                         "Stock Price": stockp,
                                         "Days to Expiration": days_to_exp,
-                                        "Alpha": str(round(100*ev_C,4))+"%"
-                                        ,"FV":str(round(100*fv,4))+"%"
+                                        "Alpha": str(round(100*ev_C,4))+"%",
+                                        "FV":str(round(100*fv,4))+"%",
+                                        "Volatility Method": volatility_method
                                     })
 
                                 if ev_IC > min_alpha  and stockp > ((strikeP2 + strikeP1)/2) and stockp < ((strikeC1 + strikeC2)/2) and ev_IC_min > 0 and IC_prob_prof > condor_prob_profit:
@@ -628,8 +629,9 @@ def EV_Calculator(symbol,fv,valid_expirations,stockp):
                                         "Mid Fill Price": "$"+str(round(IC_mid_fill,4)),
                                         "Stock Price": stockp,
                                         "Days to Expiration": days_to_exp,
-                                        "Alpha": str(round(100*ev_IC,4))+"%"
-                                        ,"FV":str(round(100*fv,4))+"%"
+                                        "Alpha": str(round(100*ev_IC,4))+"%",
+                                        "FV":str(round(100*fv,4))+"%",
+                                        "Volatility Method": volatility_method
                                     })
 
 
@@ -673,22 +675,44 @@ if Dividend_Filter:
     div_calendar = get_div_calendar()
    
 df = EV_Sheet_Spread(final_list)
-df['Alpha'] = df['Alpha'].str.replace('%', '').astype(float)
 
-highest_alpha_df = df.loc[df.groupby(['Symbol', 'Strategy'])['Alpha'].idxmax()]
+if 'Alpha' in df.columns:
+    df['Alpha'] = df['Alpha'].str.replace('%', '').astype(float)
+    highest_alpha_df = df.loc[df.groupby(['Symbol', 'Strategy'])['Alpha'].idxmax()]
 
-df_spreads = highest_alpha_df.drop(columns=["Call Lower Strike", "Call Upper Strike", "Put Lower Strike", "Put Upper Strike"])
-df_spreads = df_spreads.dropna(subset=["Lower Strike", "Upper Strike"])
-df_spreads = df_spreads[['Symbol', 'Strategy', 'Lower Strike', 'Upper Strike', 'Worst Fill Price', 'Mid Fill Price', 'Stock Price', 'Days to Expiration', 'Alpha', 'FV']]
+    spread_columns = ["Lower Strike", "Upper Strike"]
+    condor_columns = ["Call Lower Strike", "Call Upper Strike", "Put Lower Strike", "Put Upper Strike"]
 
-df_condors = highest_alpha_df.drop(columns=["Lower Strike", "Upper Strike"])
-df_condors = df_condors.dropna(subset=["Call Lower Strike", "Call Upper Strike", "Put Lower Strike", "Put Upper Strike"])
-df_condors = df_condors[['Symbol', 'Strategy', 'Call Lower Strike', 'Call Upper Strike', 'Put Lower Strike', 'Put Upper Strike', 'Worst Fill Price', 'Mid Fill Price', 'Stock Price', 'Days to Expiration', 'Alpha', 'FV']]
-df_spreads['Alpha'] = df_spreads['Alpha'].astype(str) + '%'
-df_condors['Alpha'] = df_condors['Alpha'].astype(str) + '%'
+    existing_spread_columns = [col for col in spread_columns if col in highest_alpha_df.columns]
+    existing_condor_columns = [col for col in condor_columns if col in highest_alpha_df.columns]
 
-print("Spreads DataFrame:")
-print(df_spreads)
+    is_spread = highest_alpha_df[existing_spread_columns].notnull().all(axis=1) if existing_spread_columns else pd.Series([False]*len(highest_alpha_df), index=highest_alpha_df.index)
+    is_condor = highest_alpha_df[existing_condor_columns].notnull().all(axis=1) if existing_condor_columns else pd.Series([False]*len(highest_alpha_df), index=highest_alpha_df.index)
 
-print("\nCondors DataFrame:")
-print(df_condors)
+    df_spreads = highest_alpha_df[is_spread].copy()
+    if existing_condor_columns:
+        df_spreads = df_spreads.drop(columns=existing_condor_columns, errors='ignore')
+    if existing_spread_columns:
+        df_spreads = df_spreads.dropna(subset=existing_spread_columns)
+
+    df_spreads = df_spreads[['Symbol', 'Strategy'] + existing_spread_columns + 
+                            ['Worst Fill Price', 'Mid Fill Price', 'Stock Price', 'Days to Expiration', 'Alpha', 'FV', "Volatility Method"]]
+    df_spreads['Alpha'] = df_spreads['Alpha'].astype(str) + '%'
+
+    df_condors = highest_alpha_df[is_condor].copy()
+    if existing_spread_columns:
+        df_condors = df_condors.drop(columns=existing_spread_columns, errors='ignore')
+    if existing_condor_columns:
+        df_condors = df_condors.dropna(subset=existing_condor_columns)
+
+    df_condors = df_condors[['Symbol', 'Strategy'] + existing_condor_columns + 
+                            ['Worst Fill Price', 'Mid Fill Price', 'Stock Price', 'Days to Expiration', 'Alpha', 'FV', "Volatility Method"]]
+    df_condors['Alpha'] = df_condors['Alpha'].astype(str) + '%'
+
+    print("Spreads DataFrame:")
+    print(df_spreads)
+
+    print("\nCondors DataFrame:")
+    print(df_condors)
+else: 
+    print("None of the stocks iterated meet the criteria")
